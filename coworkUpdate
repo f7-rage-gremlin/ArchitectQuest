@@ -1,0 +1,181 @@
+# 09 · For Claude Code — shared brief
+
+Hand this to Claude Code so both sides are working from the same page.
+Written 16 Aug by the Cowork session. Emily is the same person in both.
+
+---
+
+## Context
+
+Emily is sitting **Claude Certified Architect – Foundations** on **Tue 22 Sept**, inside
+the third hackathon. Certified-by date is **1 Oct**. Exam booking is locked until four
+mandatory Skilljar modules are done, so those gate everything.
+
+She's building the study system alongside the studying on purpose — the system is made
+of the things the exam tests.
+
+Laptop is **NixOS**. All tooling from declared nix shells. No global installs, ever.
+
+### Working style
+
+Brief answers, one or two sentences a point. Files rather than long chat messages.
+Show evidence rather than repeating an argument — run the command, paste the real output.
+Say which claims are checked and which are inferred. Flag it when an assumption of hers
+looks wrong; she's asked for that directly.
+
+She reviews carefully and catches real defects.
+
+---
+
+## Priority order right now
+
+1. **HeartQuest, pen-testable by Wednesday 19 Aug** — hackathon, cybersecurity theme
+2. **MathMap** — the configuration exercise (CLAUDE.md, verify command, purity hook)
+3. Everything else
+
+---
+
+## HeartQuest — the plan
+
+**Start from an accurate picture:** `npm run build` passes and the dev server runs. Vite
+uses esbuild, which strips types *without checking them* — so `tsc --noEmit` failing is a
+quality signal, not a blocker. **There is already a browser version to attack.**
+
+Order:
+
+1. **Get `tsc --noEmit` clean.** Missing CSS-module and `@types/react-dom` declarations,
+   stale `Item`/`Stats` shapes, incomplete `Player` on proximity data, unused imports,
+   missing Vite env typings. Do this first because it catches mobile regressions early,
+   not because it's blocking.
+2. **Write the threat model down before implementing anything.** You cannot pen-test a
+   model that only exists in someone's head. It needs to answer, in testable sentences:
+   - What can a hostile player learn about another player's real-world location, and how?
+   - What does the "cloak of deception" actually guarantee?
+   - Rival visibility — who sees whom, at what precision, when?
+3. **Implement the two highest-risk controls only.** Not all of them.
+4. **Pen-test in the browser.** Faster to iterate than an APK.
+5. **APK last**, if there's time. Note the toolchain is currently non-portable —
+   scripts hardcode `/opt/android-sdk` and `/usr/lib/jvm/java-21-openjdk-amd64`, and
+   `bun` is used in build scripts but undeclared in the flake.
+
+### Contract-lite for the security work
+
+Five to ten binary, observable assertions before building. Binary means checkable, not
+aspirational — "location is never transmitted at finer than 100m", not "location is
+handled safely". Candidate shapes:
+
+- A cloaked user returns no proximity result for any other user.
+- Coordinates are rounded **before** they leave the device, never after.
+- The rival list never includes a user who has blocked you.
+
+---
+
+## The four habits (no full harness)
+
+These give most of the harness's value for about twenty minutes of setup. Emily is
+deliberately *not* running the full nz-loop-harness on HeartQuest — it's the wrong weight
+for the deadline.
+
+1. **A verify command in CLAUDE.md.** One line: lint + typecheck + build + test. Every
+   session ends by running it and pasting the real output.
+2. **Contract-lite.** 5–10 binary assertions before a build session. Done means they
+   pass, not that it feels finished.
+3. **Anti-fabrication, verbatim in CLAUDE.md:** *nothing is "done" without the actual
+   command run and its real, full output. Anything needing a human is reported as
+   `NOT DONE — needs human: <what>`.*
+4. **One concern per session.** Types, then browser, then security. Long sessions
+   accumulate context that degrades everything and are expensive to abandon. Short ones
+   are cheap to discard, and discarding early is a skill.
+
+### Adversarial pass, cheaply
+
+At the end of a build session, open a **fresh** session with no context. Give it the goal
+and the conclusion, but **withhold the reasoning** — reasoning shown is reasoning agreed
+with. Ask it to find the route that was missed, not to check the argument. Two or three in
+parallel with different lenses (cheapest path · what tool wasn't checked · does this need
+doing at all) beat one generalist. Majority verdict, not first answer.
+
+---
+
+## MathMap — the configuration exercise
+
+Tiny on purpose: ~5.6KB of vanilla JS, no framework, no build step. That's a locked
+architectural choice from the spec, not an oversight — don't "improve" it into React.
+
+Now on GitHub (done). Remaining:
+
+- **CLAUDE.md** a cold session can work from: stack, the zero-build-step boundary, and
+  the three known bugs so nobody rediscovers them.
+- **A verify command** — honest and small here: `node --check` on each JS file.
+- **The nix-purity hook** (below).
+- **Test it properly:** open a brand new session, say only "read CLAUDE.md and fix bug 1".
+  If it needs a follow-up question, the file isn't finished. Write down what it still got
+  wrong — that note is the actual deliverable.
+
+### The three known bugs
+
+1. localStorage load runs *after* the initial `render()`, so nodes don't appear on
+   refresh until something else triggers a re-render.
+2. Drag mixes `e.offsetX` (element-relative) with `e2.pageX` (page-relative) → offset
+   jump. Worse, `render()` on every mousemove wipes the DOM and detaches the drag handler
+   mid-drag. This is the "browser glitch" Emily remembers.
+3. `el.onclick = () => finishEdge(node.id)` fires on any click inside the node, including
+   the edit and delete buttons — children with no `stopPropagation`.
+
+One commit per bug, symptom in the message, so `git log` reads as a bug list.
+
+---
+
+## nix-purity: skill → hook
+
+Currently a **skill**, which is the wrong artefact type. A skill loads when the model
+decides the task matches; purity is an invariant, not a task.
+
+Convert to a **`PreToolUse` hook** on Bash that rejects `npm -g`, `npm install --global`,
+`pip install`, `brew`, `curl | sh`, and bare `sudo` — exiting non-zero with a message
+saying to add it to the flake instead. Put a two-line summary in global
+`~/.claude/CLAUDE.md` as well.
+
+Test by asking for a global install and watching it be refused without the model having
+to remember. Then write down the difference in guarantee between the two implementations —
+that's an exam answer, and the distinction is squarely on the paper.
+
+---
+
+## Where things live
+
+| Where | What |
+|---|---|
+| Claude **project** (Cowork side) | Plans, exam facts, verified findings, these briefs |
+| **Drive** `Architect Campaign/` | Machine output: Habitica pulls, push audits, receipts, quest queue |
+| **Apps Script** | The engine: Habitica bridge (v7), Lab page watcher, Skilljar puller |
+| **GitHub** `f7-rage-gremlin/ArchitectQuest` | Project summaries — syncs into the Cowork project |
+
+**The channel between us:** Claude Code → Cowork already works, via the repo sync.
+Cowork → Claude Code doesn't yet; the design is Apps Script committing to the repo with
+a PAT in Script Properties. Until that exists, Emily relays.
+
+---
+
+## Habitica
+
+There's a gated bridge in Apps Script. It can create `claude`-tagged todos and read
+progress. It **cannot** delete, edit, or complete anything — the allowlist is enforced in
+the only function that touches the network, so nothing routes around it. Quest queue
+lives in Drive as `quests <date>`; `-` lines become Habitica checklist items.
+
+If you touch it: dry run defaults to ON when the flag is missing, receipts are mandatory,
+and the audit is written in a `finally` block. Those three exist because each was missing
+once and it cost something.
+
+---
+
+## Loose ends worth knowing
+
+- Voxpop is local-git-only and stays that way until the current sprint closes. Deliberate.
+- Skilljar lesson scraper returns 403 and writes empty docs. Deprioritised — course pages
+  and `docs.claude.com` are public and better.
+- Teams meeting transcripts are blocked at tenant level. Permission request pending.
+- Emily's own TODO at the votingApp root already lists: init claude, permissions/denies,
+  memory for nix purity, memory for line-by-line bash explanation. Same conclusions,
+  reached independently and first.
